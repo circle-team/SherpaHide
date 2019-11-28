@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:aop="http://www.springframework.org/schema/aop"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+          http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+          http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop.xsd
+          http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx.xsd
+">
+
+    <context:component-scan base-package="com.qdu.dao,com.qdu.service" />
+    
+    <!--现在的配置是将事务交给spring管理，由spring使用aop的思想帮我们实现事务-->
+    <!--    
+    数据源有不同的实现，包括BasicDataSource(tomcat)、ComboPooledDataSource(c3p0)
+    有一些数据源是带连接池管理功能，更有效地管理数据库连接
+    -->
+    <!--context:property-placeholder用于指定属性文件的位置，多个文件逗号隔开-->
+    <!--如果属性文件放在源包下，则需要加classpath:前缀-->
+    <context:property-placeholder location="classpath:jdbc_config.properties" />
+    
+    <!--1. 配置数据源，可以在整个程序里使用-->
+    <bean id="myDataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource">
+        <property name="driverClass"  value="${jdbc.driverClass}" />
+        <property name="jdbcUrl"  value="${jdbc.url}" />
+        <property name="user"  value="${jdbc.username}" />
+        <property name="password"  value="${jdbc.password}" />
+        <!--maxPoolSize设置连接池的最大连接数-->
+        <property name="maxPoolSize" value="${jdbc.maxPoolSize}" />
+        <!--maxPoolSize设置连接池的最小连接数-->
+        <property name="minPoolSize" value="${jdbc.minPoolSize}" />
+        <!--maxPoolSize设置连接池的初始连接数-->
+        <property name="initialPoolSize" value="${jdbc.initialPoolSize}" />
+        <!--maxPoolSize设置连接池中连接的最大空闲时间，如果超过此时间，连接可以被摧毁-->  
+        <property name="maxIdleTime" value="${jdbc.maxIdleTime}" />
+    </bean>
+    
+    <!--2. 配置会话工厂-->
+    <bean id="mySessionFactory" class="org.springframework.orm.hibernate5.LocalSessionFactoryBean">
+        <!--<property name="configLocation" value="classpath:hibernate.cfg.xml" />-->
+        <!--注入依赖的其他bean需要使用ref指定那个bean的id或name-->
+        <!--指定会话工厂使用的数据源-->
+        <property name="dataSource" ref="myDataSource" />
+        <!--        
+        <property name="mappingLocations">
+            <list>
+                <value>classpath:com/qdu/entity.Student.hbm.xml</value>
+                <value>classpath:com/qdu/entity.Product.hbm.xml</value>
+                <value>classpath:com/qdu/entity.*.hbm.xml</value>
+            </list>
+        </property>-->
+        <!--指定映射到表的类有哪些，如果使用注解映射，则使用annotatedClasses指定映射的类-->
+        
+        <!--        
+        <property name="annotatedClasses">
+            <list>
+                <value>com.qdu.entity.Student</value>
+                <value>com.qdu.entity.Product</value>
+            </list>
+        </property>-->
+        <!--对于映射到表的实体类，也可使用packagesToScan指定实体类所在的包-->
+        <!--多个包用逗号隔开-->
+<!--        <property name="packagesToScan" value="com.qdu.entity,com.qdu.model" />-->
+        <!--配置hibernate的额外属性-->
+        <property name="hibernateProperties">
+            <value>
+                hibernate.dialect=${hibernate.dialect}
+                hibernate.show_sql=${hibernate.show_sql}
+                hibernate.format_sql=${hibernate.format_sql}
+            </value>
+        </property>
+    </bean>
+    
+    <!--3.如果想spring帮你管理事务，需要配置一个事务管理器 transaction manager-->
+    <bean id="txManager" class="org.springframework.orm.hibernate5.HibernateTransactionManager">
+        <!--需要通过sessionFactory属性指定事务管理依赖的会话工厂是哪个-->
+        <property name="sessionFactory" ref="mySessionFactory" />
+    </bean>
+    
+    <!--4.配置事务通知: 哪些方法如何添加事务-->
+    <!--id是用于给通知指定一个bean, transaction-manager用于指定事务管理器的id-->
+    <tx:advice id="txAdvice" transaction-manager="txManager">
+        <!--配置事务的属性-->
+        <tx:attributes>
+            <!--tx:method标记指定应用事务的方法和事务的属性-->
+            <!--propagation属性指定事务的传播行为，也就是事务如何开始和结束-->
+            <!--REQUIRED: 说明指定的方法必须在事务内运行，如果已有可用事务，在该事务内运行，否则开始一个新事务-->
+            <!--REQUIRES_NEW: 说明指定的方法必须在事务内运行,而且始终开启一个新事务-->
+            <!--对于查询数据的操作，通常添加read-only为true，这样可以实现一些优化-->
+            <tx:method name="get*" propagation="REQUIRED" read-only="true" />
+            <tx:method name="insert*" propagation="REQUIRED" />
+            <tx:method name="update*" propagation="REQUIRED" />
+            <tx:method name="delete*" propagation="REQUIRED" />
+            <tx:method name="add*" propagation="REQUIRED" />
+        </tx:attributes>
+    </tx:advice>
+    
+    <!--5. 配置通知应用到哪些切入点-->
+    <aop:config>
+        <!--        
+        考虑到有些业务操作在一个事务中可能操作多个Dao类的多个方法，所以可以考虑
+        直接将事务加到业务层
+        -->
+        <aop:pointcut id="pt1" expression="execution(* com.qdu.service.*.*(..))" />
+        <!--使用aop:advisor标记指定通知应用到哪些切入点-->
+        <!--advice-ref指定应用的通知的id, pointcut-ref指定使用的切入点的id-->
+        <aop:advisor advice-ref="txAdvice" pointcut-ref="pt1" />
+    </aop:config>        
+    
+</beans>
