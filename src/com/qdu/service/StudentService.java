@@ -1,6 +1,8 @@
 package com.qdu.service;
 
 import com.qdu.entity.Student;
+
+
 import java.util.List;
 
 public interface StudentService {
@@ -48,6 +50,7 @@ public interface StudentService {
      * @param id 字符串表示的学号
      */
     void deleteStudent(String id);
+
 
     /**
      * 根据页码和页面记录大小获取指定页的记录
