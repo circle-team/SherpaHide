@@ -11,7 +11,7 @@
           http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx.xsd
 ">
 
-    <context:component-scan base-package="com.qdu.dao,com.qdu.service" />
+    <context:component-scan base-package="" />
     
     <!--现在的配置是将事务交给spring管理，由spring使用aop的思想帮我们实现事务-->
     <!--    
